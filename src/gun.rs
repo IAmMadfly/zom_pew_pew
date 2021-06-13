@@ -16,10 +16,18 @@ pub trait Gun: Send + Sync {
         materials: Res<crate::Materials>,
         commands: Commands,
     );
+
+    fn reload(&mut self);
 }
 
 pub struct Shotgun {
-    last_shot: f64,
+    time_left:  f32,
+    mag_size:   u16
+}
+
+pub struct Pistol {
+    time_left:  f32,
+    mag_size:   u16
 }
 
 impl Gun for Shotgun {
@@ -28,7 +36,8 @@ impl Gun for Shotgun {
         Self: Sized,
     {
         Box::new(Shotgun {
-            last_shot: 0.0
+            time_left:  0.2,
+            mag_size:   2
         })
     }
 
@@ -41,7 +50,8 @@ impl Gun for Shotgun {
         materials: Res<crate::Materials>,
         mut commands: Commands,
     ) {
-        if (time.seconds_since_startup() - self.last_shot) > 0.2 {
+        self.time_left -= time.delta_seconds();
+        if self.time_left <= 0.0 {
             if mouse.just_pressed(MouseButton::Left) {
                 let mut random = rand::thread_rng();
                 for _index in 0..5 {
@@ -62,21 +72,35 @@ impl Gun for Shotgun {
                             y: (angle.sin() + random.gen_range(-0.1..=0.1)) * 6.0,
                         });
                 }
+
+                self.mag_size -= 1;
+
+                // Set time before next possible shot
+                if self.mag_size == 0 {
+                    self.reload();
+                } else {
+                    self.time_left = 0.5;
+                }
             }
         }
     }
+
+    fn reload(&mut self) {
+        self.time_left =    1.0;
+        self.mag_size =     2;
+    }
 }
 
-pub struct Pistol {
-    last_shot: f64,
-}
 
 impl Gun for Pistol {
     fn new() -> Box<Self>
     where
         Self: Sized,
     {
-        Box::new(Pistol { last_shot: 0.0 })
+        Box::new(Pistol { 
+            time_left:  0.0,
+            mag_size:   7
+        })
     }
 
     fn shoot(
@@ -88,7 +112,8 @@ impl Gun for Pistol {
         materials: Res<crate::Materials>,
         mut commands: Commands,
     ) {
-        if (time.seconds_since_startup() - self.last_shot) > 0.1 {
+        self.time_left -= time.delta_seconds();
+        if self.time_left <= 0.0 {
             if mouse.pressed(MouseButton::Left) {
                 let velocity = crate::Velocity {
                     x: angle.cos() * 6.0,
@@ -107,9 +132,23 @@ impl Gun for Pistol {
                     })
                     .insert(crate::Bullet {})
                     .insert(velocity);
+                
+                self.mag_size -= 1;
 
-                self.last_shot = time.seconds_since_startup();
+                // Set time before next possible shot
+                if self.mag_size == 0 {
+                    self.reload();
+                } else {
+                    self.time_left = 0.2;
+                }
+
+
             }
         }
+    }
+
+    fn reload(&mut self) {
+        self.time_left =    0.8;
+        self.mag_size =     7;
     }
 }

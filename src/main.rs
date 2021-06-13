@@ -48,6 +48,25 @@ pub struct Materials {
     zom: Handle<ColorMaterial>,
 }
 
+trait AngleFinder {
+    fn get_angle_to(&self, other: &Self) -> Rad<f32>;
+}
+
+impl AngleFinder for Vec2 {
+    fn get_angle_to(&self, other: &Vec2) -> Rad<f32> {
+        let mut angle_calc = Rad::atan(
+            (other.y - self.y)
+                / (other.x - self.x),
+        );
+
+        if other.x < self.x {
+            angle_calc += Rad(std::f32::consts::PI);
+        }
+
+        angle_calc
+    }
+}
+
 fn main() {
     let mut app = App::build();
 
@@ -83,14 +102,7 @@ fn face_mouse(mut player_query: Query<(&mut Player, &mut Transform)>, windows: R
 
         let player_location = transform.translation.clone().truncate();
 
-        let mut angle_calc = Rad::atan(
-            (cursor_location_corrected.y - player_location.y)
-                / (cursor_location_corrected.x - player_location.x),
-        );
-
-        if cursor_location_corrected.x < player_location.x {
-            angle_calc += Rad(std::f32::consts::PI);
-        }
+        let angle_calc = player_location.get_angle_to(&cursor_location_corrected);
 
         transform.rotation = Quat::from_rotation_z(angle_calc.0);
         player.angle = angle_calc;
@@ -133,13 +145,16 @@ fn move_zom(
 
         zom_trans.translation.x += unit_vec.0 * 1.2;
         zom_trans.translation.y += unit_vec.1 * 1.2;
-        // zom_trans.rotation = Quat::from_rotation_z(
-        //     zom_trans
-        //         .translation
-        //         .clone()
-        //         .truncate()
-        //         .angle_between(_player_transform.translation.clone().truncate()),
-        // );
+        zom_trans.rotation = Quat::from_rotation_z(
+            zom_trans
+                .translation
+                .truncate()
+                .get_angle_to(
+                    &_player_transform
+                        .translation
+                        .truncate()
+                    ).0
+            );
     }
 }
 
@@ -248,6 +263,21 @@ fn move_elements(mut vel_query: Query<(&Velocity, &mut Transform)>) {
 // ----------------------------------
 fn load_camera(mut commands: Commands) {
     commands.spawn_bundle(OrthographicCameraBundle::new_2d());
+    commands.spawn_bundle(UiCameraBundle::default());
+}
+
+fn load_text(mut commands: Commands) {
+    // commands.spawn_bundle(TextBundle { 
+    //     node: (), 
+    //     style: (), 
+    //     draw: (), 
+    //     visible: (), 
+    //     text: (), 
+    //     calculated_size: (), 
+    //     focus_policy: (), 
+    //     transform: (), 
+    //     global_transform: ()
+    // });
 }
 
 fn load_materials(mut commands: Commands, mut materials: ResMut<Assets<ColorMaterial>>) {
@@ -267,7 +297,7 @@ fn load_player(mut commands: Commands, mut materials: ResMut<Assets<ColorMateria
         })
         .insert(Player {
             angle: Rad(0.0),
-            gun: Some(gun::Shotgun::new()),
+            gun: Some(gun::Pistol::new()),
         });
 }
 // -----------------------------------

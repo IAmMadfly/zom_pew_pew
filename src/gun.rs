@@ -17,17 +17,23 @@ pub trait Gun: Send + Sync {
         commands: Commands,
     );
 
+    fn left_in_mag(&self) -> u16;
+
     fn reload(&mut self);
+
+    fn reloading(&self) -> bool;
 }
 
 pub struct Shotgun {
     time_left:  f32,
-    mag_size:   u16
+    mag_size:   u16,
+    reloading:  bool
 }
 
 pub struct Pistol {
     time_left:  f32,
-    mag_size:   u16
+    mag_size:   u16,
+    reloading:  bool
 }
 
 impl Gun for Shotgun {
@@ -37,7 +43,8 @@ impl Gun for Shotgun {
     {
         Box::new(Shotgun {
             time_left:  0.2,
-            mag_size:   2
+            mag_size:   2,
+            reloading:  false
         })
     }
 
@@ -52,6 +59,7 @@ impl Gun for Shotgun {
     ) {
         self.time_left -= time.delta_seconds();
         if self.time_left <= 0.0 {
+            self.reloading = false;
             if mouse.just_pressed(MouseButton::Left) {
                 let mut random = rand::thread_rng();
                 for _index in 0..5 {
@@ -88,6 +96,15 @@ impl Gun for Shotgun {
     fn reload(&mut self) {
         self.time_left =    1.0;
         self.mag_size =     2;
+        self.reloading =    true;
+    }
+
+    fn reloading(&self) -> bool {
+        self.reloading
+    }
+
+    fn left_in_mag(&self) -> u16 {
+        self.mag_size
     }
 }
 
@@ -99,7 +116,8 @@ impl Gun for Pistol {
     {
         Box::new(Pistol { 
             time_left:  0.0,
-            mag_size:   7
+            mag_size:   7,
+            reloading:  false
         })
     }
 
@@ -114,7 +132,8 @@ impl Gun for Pistol {
     ) {
         self.time_left -= time.delta_seconds();
         if self.time_left <= 0.0 {
-            if mouse.pressed(MouseButton::Left) {
+            self.reloading = false;
+            if mouse.just_pressed(MouseButton::Left) {
                 let velocity = crate::Velocity {
                     x: angle.cos() * 6.0,
                     y: angle.sin() * 6.0,
@@ -139,7 +158,7 @@ impl Gun for Pistol {
                 if self.mag_size == 0 {
                     self.reload();
                 } else {
-                    self.time_left = 0.2;
+                    self.time_left = 0.01;
                 }
 
 
@@ -147,8 +166,17 @@ impl Gun for Pistol {
         }
     }
 
+    fn left_in_mag(&self) -> u16 {
+        self.mag_size
+    }
+
     fn reload(&mut self) {
         self.time_left =    0.8;
         self.mag_size =     7;
+        self.reloading =    true;
+    }
+
+    fn reloading(&self) -> bool {
+        self.reloading
     }
 }

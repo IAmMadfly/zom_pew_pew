@@ -76,6 +76,7 @@ fn main() {
 
     app.add_startup_system(load_player.system());
     app.add_startup_system(load_camera.system());
+    app.add_startup_system(load_text.system());
 
     app.add_system(face_mouse.system());
     app.add_system(shoot_bullet.system());
@@ -85,8 +86,25 @@ fn main() {
     app.add_system(move_zom.system());
     app.add_system(zom_bullet_collision.system());
     app.add_system(despawn_bullet.system());
+    app.add_system(update_text.system());
 
     app.run();
+}
+
+fn update_text(
+    mut text_query: Query<&mut Text>,
+    player_query:   Query<&Player>
+) {
+    if let (Ok(player), Ok(mut text)) = (player_query.single(), text_query.single_mut()) {
+        if  let Some(gun) = &player.gun {
+            text.sections[0].value = match gun.reloading() {
+                true => "RELOADING!".to_string(),
+                false => format!("Rounds: {}", gun.left_in_mag()),
+            };
+        } else {
+            text.sections[0].value = "No gun".to_string();
+        }
+    }
 }
 
 fn face_mouse(mut player_query: Query<(&mut Player, &mut Transform)>, windows: Res<Windows>) {
@@ -129,6 +147,10 @@ fn move_player(input: Res<Input<KeyCode>>, mut player_query: Query<(&Player, &mu
         trans.translation += translation;
     }
 }
+
+// fn reload(input: Res<Input<KeyCode>>, mut player_query: Query<&mut player>) {
+//     if let Ok(player) = player_query.
+// }
 
 fn move_zom(
     mut player_query: QuerySet<(Query<(&Player, &Transform)>, Query<(&Zom, &mut Transform)>)>,
@@ -266,18 +288,35 @@ fn load_camera(mut commands: Commands) {
     commands.spawn_bundle(UiCameraBundle::default());
 }
 
-fn load_text(mut commands: Commands) {
-    // commands.spawn_bundle(TextBundle { 
-    //     node: (), 
-    //     style: (), 
-    //     draw: (), 
-    //     visible: (), 
-    //     text: (), 
-    //     calculated_size: (), 
-    //     focus_policy: (), 
-    //     transform: (), 
-    //     global_transform: ()
-    // });
+fn load_text(
+    mut commands:   Commands,
+    asset_server:   Res<AssetServer>
+) {
+    commands.spawn_bundle(TextBundle {
+        style: Style {
+            position_type: PositionType::Absolute,
+            position:   Rect {
+                top:    Val::Px(5.0),
+                left:   Val::Px(5.0),
+                ..Default::default()
+            },
+            ..Default::default()
+        },  
+        text: Text {
+            sections: vec![
+                TextSection {
+                    value:  "Rounds".to_string(),
+                    style:  TextStyle  {
+                        font:       asset_server.load("fonts/FiraMono-Medium.ttf"),
+                        font_size:  20.0,
+                        color:      Color::WHITE
+                    }
+                }
+            ],
+            ..Default::default()
+        },
+        ..Default::default()
+    });
 }
 
 fn load_materials(mut commands: Commands, mut materials: ResMut<Assets<ColorMaterial>>) {

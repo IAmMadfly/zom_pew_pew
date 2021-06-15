@@ -25,15 +25,15 @@ pub trait Gun: Send + Sync {
 }
 
 pub struct Shotgun {
-    time_left:  f32,
-    mag_size:   u16,
-    reloading:  bool
+    time_left: f32,
+    mag_size: u16,
+    reloading: bool,
 }
 
 pub struct Pistol {
-    time_left:  f32,
-    mag_size:   u16,
-    reloading:  bool
+    time_left: f32,
+    mag_size: u16,
+    reloading: bool,
 }
 
 impl Gun for Shotgun {
@@ -42,9 +42,9 @@ impl Gun for Shotgun {
         Self: Sized,
     {
         Box::new(Shotgun {
-            time_left:  0.2,
-            mag_size:   2,
-            reloading:  false
+            time_left: 0.2,
+            mag_size: 2,
+            reloading: false,
         })
     }
 
@@ -75,10 +75,10 @@ impl Gun for Shotgun {
                             ..Default::default()
                         })
                         .insert(crate::Bullet {})
-                        .insert(crate::Velocity {
-                            x: (angle.cos() + random.gen_range(-0.1..=0.1)) * 6.0,
-                            y: (angle.sin() + random.gen_range(-0.1..=0.1)) * 6.0,
-                        });
+                        .insert(crate::Vel(Vec2::new(
+                            (angle.cos() + random.gen_range(-0.1..=0.1)) * 6.0,
+                            (angle.sin() + random.gen_range(-0.1..=0.1)) * 6.0,
+                        )));
                 }
 
                 self.mag_size -= 1;
@@ -94,9 +94,9 @@ impl Gun for Shotgun {
     }
 
     fn reload(&mut self) {
-        self.time_left =    1.0;
-        self.mag_size =     2;
-        self.reloading =    true;
+        self.time_left = 1.0;
+        self.mag_size = 2;
+        self.reloading = true;
     }
 
     fn reloading(&self) -> bool {
@@ -108,16 +108,15 @@ impl Gun for Shotgun {
     }
 }
 
-
 impl Gun for Pistol {
     fn new() -> Box<Self>
     where
         Self: Sized,
     {
-        Box::new(Pistol { 
-            time_left:  0.0,
-            mag_size:   7,
-            reloading:  false
+        Box::new(Pistol {
+            time_left: 0.0,
+            mag_size: 7,
+            reloading: false,
         })
     }
 
@@ -134,10 +133,7 @@ impl Gun for Pistol {
         if self.time_left <= 0.0 {
             self.reloading = false;
             if mouse.just_pressed(MouseButton::Left) {
-                let velocity = crate::Velocity {
-                    x: angle.cos() * 6.0,
-                    y: angle.sin() * 6.0,
-                };
+                let velocity = crate::Vel(Vec2::new(angle.cos() * 6.0, angle.sin() * 6.0));
 
                 let mut transform = player_transform.clone();
                 transform.translation.z = 0.0;
@@ -151,7 +147,7 @@ impl Gun for Pistol {
                     })
                     .insert(crate::Bullet {})
                     .insert(velocity);
-                
+
                 self.mag_size -= 1;
 
                 // Set time before next possible shot
@@ -160,8 +156,6 @@ impl Gun for Pistol {
                 } else {
                     self.time_left = 0.01;
                 }
-
-
             }
         }
     }
@@ -171,9 +165,9 @@ impl Gun for Pistol {
     }
 
     fn reload(&mut self) {
-        self.time_left =    0.8;
-        self.mag_size =     7;
-        self.reloading =    true;
+        self.time_left = 0.8;
+        self.mag_size = 7;
+        self.reloading = true;
     }
 
     fn reloading(&self) -> bool {

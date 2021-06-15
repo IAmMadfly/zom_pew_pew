@@ -5,9 +5,9 @@ use rand::{self, Rng};
 
 mod gun;
 
-static MOVE_SPEED: f32 =    1.6;
-static ZOM_SPEED: f32 =     2.2;
-static ZOM_SIZE: f32 =      10.0;
+static MOVE_SPEED: f32 = 1.6;
+static ZOM_SPEED: f32 = 2.2;
+static ZOM_SIZE: f32 = 10.0;
 
 struct Player {
     angle: Rad<f32>,
@@ -16,12 +16,19 @@ struct Player {
 
 struct Zom {}
 
-struct Velocity {
-    x: f32,
-    y: f32,
+struct Vel(Vec2);
+
+trait Velocity {
+    fn magnitude(&self) -> f32;
+
+    fn unit_vec(&self) -> (f32, f32);
+
+    fn between_transforms(start: &Self, end: &Self) -> Self;
+
+    fn get_angle_to(&self, other: &Self) -> Rad<f32>;
 }
 
-impl Velocity {
+impl Velocity for Vec2 {
     fn magnitude(&self) -> f32 {
         (self.x.powi(2) + self.y.powi(2)).sqrt()
     }
@@ -34,11 +41,18 @@ impl Velocity {
         (self.x / mag, self.y / mag)
     }
 
-    fn between_transforms(start: &Transform, end: &Transform) -> Velocity {
-        Velocity {
-            x: end.translation.x - start.translation.x,
-            y: end.translation.y - start.translation.y,
+    fn between_transforms(start: &Vec2, end: &Vec2) -> Vec2 {
+        Vec2::new(end.x - start.x, end.y - start.y)
+    }
+
+    fn get_angle_to(&self, other: &Vec2) -> Rad<f32> {
+        let mut angle_calc = Rad::atan((other.y - self.y) / (other.x - self.x));
+
+        if other.x < self.x {
+            angle_calc += Rad(std::f32::consts::PI);
         }
+
+        angle_calc
     }
 }
 
@@ -49,24 +63,24 @@ pub struct Materials {
     zom: Handle<ColorMaterial>,
 }
 
-trait AngleFinder {
-    fn get_angle_to(&self, other: &Self) -> Rad<f32>;
+
+trait ClampMax {
+    fn clamp_max_length(&mut self, max: f32);
 }
 
-impl AngleFinder for Vec2 {
-    fn get_angle_to(&self, other: &Vec2) -> Rad<f32> {
-        let mut angle_calc = Rad::atan(
-            (other.y - self.y)
-                / (other.x - self.x),
-        );
+impl ClampMax for Vec2 {
+    fn clamp_max_length(&mut self, max: f32) {
+        let curr_length = (self.x.powi(2) + self.y.powi(2)).sqrt();
 
-        if other.x < self.x {
-            angle_calc += Rad(std::f32::consts::PI);
+        if curr_length > max {
+            let ratio = max / curr_length;
+
+            self.x = self.x * ratio;
+            self.y = self.y * ratio;
         }
-
-        angle_calc
     }
 }
+
 
 fn main() {
     let mut app = App::build();
@@ -92,12 +106,9 @@ fn main() {
     app.run();
 }
 
-fn update_text(
-    mut text_query: Query<&mut Text>,
-    player_query:   Query<&Player>
-) {
+fn update_text(mut text_query: Query<&mut Text>, player_query: Query<&Player>) {
     if let (Ok(player), Ok(mut text)) = (player_query.single(), text_query.single_mut()) {
-        if  let Some(gun) = &player.gun {
+        if let Some(gun) = &player.gun {
             text.sections[0].value = match gun.reloading() {
                 true => "RELOADING!".to_string(),
                 false => format!("Rounds: {}", gun.left_in_mag()),
@@ -145,7 +156,7 @@ fn move_player(input: Res<Input<KeyCode>>, mut player_query: Query<(&Player, &mu
             translation.x += MOVE_SPEED;
         }
 
-        translation.clamp_length_max(MOVE_SPEED);
+        translation.clamp_max_length(MOVE_SPEED);
 
         trans.translation += Vec3::new(translation.x, translation.y, 0.0);
     }
@@ -166,7 +177,11 @@ fn move_zom(
     }
 
     for (_zom, mut zom_trans) in player_query.q1_mut().iter_mut() {
-        let unit_vec = Velocity::between_transforms(&zom_trans, &_player_transform).unit_vec();
+        let unit_vec = Velocity::between_transforms(
+            &zom_trans.translation.truncate(),
+            &_player_transform.translation.truncate(),
+        )
+        .unit_vec();
 
         zom_trans.translation.x += unit_vec.0 * ZOM_SPEED;
         zom_trans.translation.y += unit_vec.1 * ZOM_SPEED;
@@ -174,12 +189,9 @@ fn move_zom(
             zom_trans
                 .translation
                 .truncate()
-                .get_angle_to(
-                    &_player_transform
-                        .translation
-                        .truncate()
-                    ).0
-            );
+                .get_angle_to(&_player_transform.translation.truncate())
+                .0,
+        );
     }
 }
 
@@ -190,7 +202,11 @@ fn zom_bullet_collision(
 ) {
     for (_zom, zom_trans, zom_entity) in zom_query.iter() {
         for (_bullet, bullet_trans, bullet_entity) in bullet_query.iter() {
-            let dist = Velocity::between_transforms(zom_trans, bullet_trans).magnitude();
+            let dist = Velocity::between_transforms(
+                &zom_trans.translation.truncate(),
+                &bullet_trans.translation.truncate(),
+            )
+            .magnitude();
 
             if dist < ZOM_SIZE {
                 commands.entity(zom_entity).despawn();
@@ -277,10 +293,10 @@ fn despawn_bullet(
     }
 }
 
-fn move_elements(mut vel_query: Query<(&Velocity, &mut Transform)>) {
+fn move_elements(mut vel_query: Query<(&Vel, &mut Transform)>) {
     for (vel, mut trans) in vel_query.iter_mut() {
-        trans.translation.x += vel.x;
-        trans.translation.y += vel.y;
+        trans.translation.x += vel.0.x;
+        trans.translation.y += vel.0.y;
     }
 }
 
@@ -291,31 +307,26 @@ fn load_camera(mut commands: Commands) {
     commands.spawn_bundle(UiCameraBundle::default());
 }
 
-fn load_text(
-    mut commands:   Commands,
-    asset_server:   Res<AssetServer>
-) {
+fn load_text(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.spawn_bundle(TextBundle {
         style: Style {
             position_type: PositionType::Absolute,
-            position:   Rect {
-                top:    Val::Px(5.0),
-                left:   Val::Px(5.0),
+            position: Rect {
+                top: Val::Px(5.0),
+                left: Val::Px(5.0),
                 ..Default::default()
             },
             ..Default::default()
-        },  
+        },
         text: Text {
-            sections: vec![
-                TextSection {
-                    value:  "Rounds".to_string(),
-                    style:  TextStyle  {
-                        font:       asset_server.load("fonts/FiraMono-Medium.ttf"),
-                        font_size:  20.0,
-                        color:      Color::WHITE
-                    }
-                }
-            ],
+            sections: vec![TextSection {
+                value: "Rounds".to_string(),
+                style: TextStyle {
+                    font: asset_server.load("fonts/FiraMono-Medium.ttf"),
+                    font_size: 20.0,
+                    color: Color::WHITE,
+                },
+            }],
             ..Default::default()
         },
         ..Default::default()

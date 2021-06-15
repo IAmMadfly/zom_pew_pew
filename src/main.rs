@@ -5,8 +5,9 @@ use rand::{self, Rng};
 
 mod gun;
 
-static MOVE_SPEED: f32 = 0.6;
-static ZOM_SIZE: f32 = 10.0;
+static MOVE_SPEED: f32 =    1.6;
+static ZOM_SPEED: f32 =     2.2;
+static ZOM_SIZE: f32 =      10.0;
 
 struct Player {
     angle: Rad<f32>,
@@ -129,7 +130,7 @@ fn face_mouse(mut player_query: Query<(&mut Player, &mut Transform)>, windows: R
 
 fn move_player(input: Res<Input<KeyCode>>, mut player_query: Query<(&Player, &mut Transform)>) {
     if let Ok((_player, mut trans)) = player_query.single_mut() {
-        let mut translation = Vec3::new(0.0, 0.0, 0.0);
+        let mut translation = Vec2::new(0.0, 0.0);
 
         if input.pressed(KeyCode::W) {
             translation.y += MOVE_SPEED;
@@ -144,7 +145,9 @@ fn move_player(input: Res<Input<KeyCode>>, mut player_query: Query<(&Player, &mu
             translation.x += MOVE_SPEED;
         }
 
-        trans.translation += translation;
+        translation.clamp_length_max(MOVE_SPEED);
+
+        trans.translation += Vec3::new(translation.x, translation.y, 0.0);
     }
 }
 
@@ -165,8 +168,8 @@ fn move_zom(
     for (_zom, mut zom_trans) in player_query.q1_mut().iter_mut() {
         let unit_vec = Velocity::between_transforms(&zom_trans, &_player_transform).unit_vec();
 
-        zom_trans.translation.x += unit_vec.0 * 1.2;
-        zom_trans.translation.y += unit_vec.1 * 1.2;
+        zom_trans.translation.x += unit_vec.0 * ZOM_SPEED;
+        zom_trans.translation.y += unit_vec.1 * ZOM_SPEED;
         zom_trans.rotation = Quat::from_rotation_z(
             zom_trans
                 .translation
@@ -336,7 +339,7 @@ fn load_player(mut commands: Commands, mut materials: ResMut<Assets<ColorMateria
         })
         .insert(Player {
             angle: Rad(0.0),
-            gun: Some(gun::Pistol::new()),
+            gun: Some(gun::Shotgun::new()),
         });
 }
 // -----------------------------------

@@ -8,6 +8,8 @@ mod gun;
 static MOVE_SPEED: f32 = 1.6;
 static ZOM_SPEED: f32 = 2.2;
 static ZOM_SIZE: f32 = 10.0;
+static STRONG_ZOM_SIZE: f32 = 15.0;
+static STRONG_ZOM_SPEED: f32 = 1.6;
 
 struct Player {
     angle: Rad<f32>,
@@ -15,6 +17,16 @@ struct Player {
 }
 
 struct Zom {}
+
+struct StrongZom{
+    health:     f32
+}
+
+impl Default for StrongZom {
+    fn default() -> Self {
+        StrongZom {health: 1.0}
+    }
+}
 
 struct Vel(Vec2);
 
@@ -59,8 +71,9 @@ impl Velocity for Vec2 {
 struct Bullet {}
 
 pub struct Materials {
-    bullet: Handle<ColorMaterial>,
-    zom: Handle<ColorMaterial>,
+    bullet:     Handle<ColorMaterial>,
+    zom:        Handle<ColorMaterial>,
+    strong_zom: Handle<ColorMaterial>,
 }
 
 
@@ -99,6 +112,7 @@ fn main() {
     app.add_system(move_player.system());
     app.add_system(spawn_zom.system());
     app.add_system(move_zom.system());
+    app.add_system(move_strong_zom.system());
     app.add_system(zom_bullet_collision.system());
     app.add_system(despawn_bullet.system());
     app.add_system(update_text.system());
@@ -167,7 +181,7 @@ fn move_player(input: Res<Input<KeyCode>>, mut player_query: Query<(&Player, &mu
 // }
 
 fn move_zom(
-    mut player_query: QuerySet<(Query<(&Player, &Transform)>, Query<(&Zom, &mut Transform)>)>,
+    mut player_query: QuerySet<(Query<(&Player, &Transform)>, Query<(&Zom, &mut Transform), Without<StrongZom>>)>,
 ) {
     let mut _player_transform = Transform::from_xyz(0.0, 0.0, 0.0);
     if let Ok((_player, player_trans)) = player_query.q0().single() {
@@ -195,10 +209,40 @@ fn move_zom(
     }
 }
 
+fn move_strong_zom(
+    mut player_query: QuerySet<(Query<(&Player, &Transform)>, Query<(&StrongZom, &mut Transform)>)>,
+) {
+    let mut _player_transform = Transform::from_xyz(0.0, 0.0, 0.0);
+    if let Ok((_player, player_trans)) = player_query.q0().single() {
+        _player_transform = player_trans.clone();
+    } else {
+        return;
+    }
+
+    for (_zom, mut zom_trans) in player_query.q1_mut().iter_mut() {
+        let unit_vec = Velocity::between_transforms(
+            &zom_trans.translation.truncate(),
+            &_player_transform.translation.truncate(),
+        )
+        .unit_vec();
+
+        zom_trans.translation.x += unit_vec.0 * STRONG_ZOM_SPEED;
+        zom_trans.translation.y += unit_vec.1 * STRONG_ZOM_SPEED;
+        zom_trans.rotation = Quat::from_rotation_z(
+            zom_trans
+                .translation
+                .truncate()
+                .get_angle_to(&_player_transform.translation.truncate())
+                .0,
+        );
+    }
+}
+
 fn zom_bullet_collision(
-    bullet_query: Query<(&Bullet, &Transform, Entity)>,
-    zom_query: Query<(&Zom, &Transform, Entity)>,
-    mut commands: Commands,
+    bullet_query:       Query<(&Bullet, &Transform, Entity)>,
+    zom_query:          Query<(&Zom, &Transform, Entity)>,
+    strong_zom_query:   Query<&StrongZom>,
+    mut commands:       Commands,
 ) {
     for (_zom, zom_trans, zom_entity) in zom_query.iter() {
         for (_bullet, bullet_trans, bullet_entity) in bullet_query.iter() {
@@ -207,10 +251,22 @@ fn zom_bullet_collision(
                 &bullet_trans.translation.truncate(),
             )
             .magnitude();
-
-            if dist < ZOM_SIZE {
-                commands.entity(zom_entity).despawn();
-                commands.entity(bullet_entity).despawn();
+            
+            let strong_zom_bool = match strong_zom_query.get(zom_entity) {
+                Ok(_) => true,
+                Err(_) => false,
+            };
+            
+            if strong_zom_bool {
+                if dist < STRONG_ZOM_SIZE {
+                    commands.entity(zom_entity).despawn();
+                    commands.entity(bullet_entity).despawn();
+                }
+            } else {
+                if dist < ZOM_SIZE {
+                    commands.entity(zom_entity).despawn();
+                    commands.entity(bullet_entity).despawn();
+                }   
             }
         }
     }
@@ -250,14 +306,31 @@ fn spawn_zom(mut commands: Commands, materials: Res<Materials>, windows: Res<Win
             }
         }
 
-        commands
-            .spawn_bundle(SpriteBundle {
-                sprite: Sprite::new(Vec2::new(ZOM_SIZE, ZOM_SIZE)),
-                material: materials.zom.clone(),
-                transform: Transform::from_xyz(translation.x, translation.y, translation.z),
-                ..Default::default()
-            })
-            .insert(Zom {});
+        match random.gen_range(0..10) {
+            1|2|3|4|5|6 => {
+                commands
+                    .spawn_bundle(SpriteBundle {
+                        sprite: Sprite::new(Vec2::new(ZOM_SIZE, ZOM_SIZE)),
+                        material: materials.zom.clone(),
+                        transform: Transform::from_xyz(translation.x, translation.y, translation.z),
+                        ..Default::default()
+                    })
+                    .insert(Zom {});
+            },
+            7|8|9 => {
+                commands
+                    .spawn_bundle(SpriteBundle {
+                        sprite: Sprite::new(Vec2::new(STRONG_ZOM_SIZE, STRONG_ZOM_SIZE)),
+                        material: materials.strong_zom.clone(),
+                        transform: Transform::from_xyz(translation.x, translation.y, translation.z),
+                        ..Default::default()
+                    })
+                    .insert(Zom {})
+                    .insert(StrongZom::default());
+            },
+            _  => {}
+        }
+        
     }
 }
 
@@ -337,6 +410,7 @@ fn load_materials(mut commands: Commands, mut materials: ResMut<Assets<ColorMate
     commands.insert_resource(Materials {
         bullet: materials.add(Color::GRAY.into()),
         zom: materials.add(Color::RED.into()),
+        strong_zom: materials.add(Color::CYAN.into())
     });
 }
 

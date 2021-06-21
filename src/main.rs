@@ -5,7 +5,7 @@ use rand::{self, Rng};
 
 mod gun;
 
-static MOVE_SPEED: f32 = 1.6;
+static MOVE_SPEED: f32 = 1.8;
 static ZOM_SPEED: f32 = 2.2;
 static ZOM_SIZE: f32 = 10.0;
 static STRONG_ZOM_SIZE: f32 = 15.0;
@@ -110,6 +110,7 @@ fn main() {
     app.add_system(shoot_bullet.system());
     app.add_system(move_elements.system());
     app.add_system(move_player.system());
+    app.add_system(player_input.system());
     app.add_system(spawn_zom.system());
     app.add_system(move_zom.system());
     app.add_system(move_strong_zom.system());
@@ -176,9 +177,18 @@ fn move_player(input: Res<Input<KeyCode>>, mut player_query: Query<(&Player, &mu
     }
 }
 
-// fn reload(input: Res<Input<KeyCode>>, mut player_query: Query<&mut player>) {
-//     if let Ok(player) = player_query.
-// }
+fn player_input(
+    input: Res<Input<KeyCode>>, 
+    mut player_query: Query<&mut Player>
+) {
+    if let Ok(mut player) = player_query.single_mut() {
+        if input.pressed(KeyCode::R) {
+            if let Some(gun) = &mut player.gun {
+                gun.reload();
+            }
+        }
+    }
+}
 
 fn move_zom(
     mut player_query: QuerySet<(Query<(&Player, &Transform)>, Query<(&Zom, &mut Transform), Without<StrongZom>>)>,

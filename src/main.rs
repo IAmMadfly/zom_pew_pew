@@ -16,16 +16,20 @@ struct Player {
     gun: Option<Box<dyn gun::Gun>>,
 }
 
-struct Zom {}
-
-struct StrongZom{
-    health:     f32
+enum ZomType {
+    Default,
+    Strong
 }
 
-impl Default for StrongZom {
+impl Default for ZomType {
     fn default() -> Self {
-        StrongZom {health: 1.0}
+        ZomType::Default
     }
+}
+
+#[derive(Default)]
+struct Zom {
+    zom_type:   ZomType
 }
 
 struct Vel(Vec2);
@@ -113,7 +117,6 @@ fn main() {
     app.add_system(player_input.system());
     app.add_system(spawn_zom.system());
     app.add_system(move_zom.system());
-    app.add_system(move_strong_zom.system());
     app.add_system(zom_bullet_collision.system());
     app.add_system(despawn_bullet.system());
     app.add_system(update_text.system());
@@ -191,7 +194,7 @@ fn player_input(
 }
 
 fn move_zom(
-    mut player_query: QuerySet<(Query<(&Player, &Transform)>, Query<(&Zom, &mut Transform), Without<StrongZom>>)>,
+    mut player_query: QuerySet<(Query<(&Player, &Transform)>, Query<(&Zom, &mut Transform)>)>,
 ) {
     let mut _player_transform = Transform::from_xyz(0.0, 0.0, 0.0);
     if let Ok((_player, player_trans)) = player_query.q0().single() {
@@ -200,44 +203,20 @@ fn move_zom(
         return;
     }
 
-    for (_zom, mut zom_trans) in player_query.q1_mut().iter_mut() {
+    for (zom, mut zom_trans) in player_query.q1_mut().iter_mut() {
         let unit_vec = Velocity::between_transforms(
             &zom_trans.translation.truncate(),
             &_player_transform.translation.truncate(),
         )
         .unit_vec();
 
-        zom_trans.translation.x += unit_vec.0 * ZOM_SPEED;
-        zom_trans.translation.y += unit_vec.1 * ZOM_SPEED;
-        zom_trans.rotation = Quat::from_rotation_z(
-            zom_trans
-                .translation
-                .truncate()
-                .get_angle_to(&_player_transform.translation.truncate())
-                .0,
-        );
-    }
-}
+        let speed = match zom.zom_type {
+            ZomType::Default => ZOM_SPEED,
+            ZomType::Strong => STRONG_ZOM_SPEED
+        };
 
-fn move_strong_zom(
-    mut player_query: QuerySet<(Query<(&Player, &Transform)>, Query<(&StrongZom, &mut Transform)>)>,
-) {
-    let mut _player_transform = Transform::from_xyz(0.0, 0.0, 0.0);
-    if let Ok((_player, player_trans)) = player_query.q0().single() {
-        _player_transform = player_trans.clone();
-    } else {
-        return;
-    }
-
-    for (_zom, mut zom_trans) in player_query.q1_mut().iter_mut() {
-        let unit_vec = Velocity::between_transforms(
-            &zom_trans.translation.truncate(),
-            &_player_transform.translation.truncate(),
-        )
-        .unit_vec();
-
-        zom_trans.translation.x += unit_vec.0 * STRONG_ZOM_SPEED;
-        zom_trans.translation.y += unit_vec.1 * STRONG_ZOM_SPEED;
+        zom_trans.translation.x += unit_vec.0 * speed;
+        zom_trans.translation.y += unit_vec.1 * speed;
         zom_trans.rotation = Quat::from_rotation_z(
             zom_trans
                 .translation
@@ -251,10 +230,9 @@ fn move_strong_zom(
 fn zom_bullet_collision(
     bullet_query:       Query<(&Bullet, &Transform, Entity)>,
     zom_query:          Query<(&Zom, &Transform, Entity)>,
-    strong_zom_query:   Query<&StrongZom>,
     mut commands:       Commands,
 ) {
-    for (_zom, zom_trans, zom_entity) in zom_query.iter() {
+    for (zom, zom_trans, zom_entity) in zom_query.iter() {
         for (_bullet, bullet_trans, bullet_entity) in bullet_query.iter() {
             let dist = Velocity::between_transforms(
                 &zom_trans.translation.truncate(),
@@ -262,22 +240,20 @@ fn zom_bullet_collision(
             )
             .magnitude();
             
-            let strong_zom_bool = match strong_zom_query.get(zom_entity) {
-                Ok(_) => true,
-                Err(_) => false,
+            match zom.zom_type {
+                ZomType::Default => {
+                    if dist < ZOM_SIZE {
+                        commands.entity(zom_entity).despawn();
+                        commands.entity(bullet_entity).despawn();
+                    }
+                },
+                ZomType::Strong => {
+                    if dist < STRONG_ZOM_SIZE {
+                        commands.entity(zom_entity).despawn();
+                        commands.entity(bullet_entity).despawn();
+                    }
+                },
             };
-            
-            if strong_zom_bool {
-                if dist < STRONG_ZOM_SIZE {
-                    commands.entity(zom_entity).despawn();
-                    commands.entity(bullet_entity).despawn();
-                }
-            } else {
-                if dist < ZOM_SIZE {
-                    commands.entity(zom_entity).despawn();
-                    commands.entity(bullet_entity).despawn();
-                }   
-            }
         }
     }
 }
@@ -317,7 +293,7 @@ fn spawn_zom(mut commands: Commands, materials: Res<Materials>, windows: Res<Win
         }
 
         match random.gen_range(0..10) {
-            1|2|3|4|5|6 => {
+            0|1|2|3|4|5|6 => {
                 commands
                     .spawn_bundle(SpriteBundle {
                         sprite: Sprite::new(Vec2::new(ZOM_SIZE, ZOM_SIZE)),
@@ -325,7 +301,7 @@ fn spawn_zom(mut commands: Commands, materials: Res<Materials>, windows: Res<Win
                         transform: Transform::from_xyz(translation.x, translation.y, translation.z),
                         ..Default::default()
                     })
-                    .insert(Zom {});
+                    .insert(Zom::default());
             },
             7|8|9 => {
                 commands
@@ -335,8 +311,7 @@ fn spawn_zom(mut commands: Commands, materials: Res<Materials>, windows: Res<Win
                         transform: Transform::from_xyz(translation.x, translation.y, translation.z),
                         ..Default::default()
                     })
-                    .insert(Zom {})
-                    .insert(StrongZom::default());
+                    .insert(Zom {zom_type: ZomType::Strong});
             },
             _  => {}
         }

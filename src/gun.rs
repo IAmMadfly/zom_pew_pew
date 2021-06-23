@@ -21,6 +21,8 @@ pub trait Gun: Send + Sync {
 
     fn reload(&mut self);
 
+    fn name(&self) -> &str;
+
     fn reloading(&self) -> bool;
 }
 
@@ -46,6 +48,10 @@ impl Gun for Shotgun {
             mag_size: 2,
             reloading: false,
         })
+    }
+
+    fn name(&self) -> &str {
+        "Shotgun"
     }
 
     fn shoot(
@@ -120,6 +126,10 @@ impl Gun for Pistol {
         })
     }
 
+    fn name(&self) -> &str {
+        "Pistol"
+    }
+
     fn shoot(
         &mut self,
         time: Res<Time>,
@@ -174,3 +184,6 @@ impl Gun for Pistol {
         self.reloading
     }
 }
+// <a target="_blank" href="https://icons8.com/icon/35235/center-of-gravity">Center of Gravity</a> icon by <a target="_blank" href="https://icons8.com">Icons8</a>
+// <a target="_blank" href="https://icons8.com/icon/YhHeUSpBoEMc/gun">Gun</a> icon by <a target="_blank" href="https://icons8.com">Icons8</a>
+// <a target="_blank" href="https://icons8.com/icon/IVPN7F53YUu4/submachine-gun">Submachine Gun</a> icon by <a target="_blank" href="https://icons8.com">Icons8</a>

@@ -152,7 +152,7 @@ fn face_mouse(mut player_query: Query<(&mut Player, &mut Transform)>, windows: R
 
         let angle_calc = player_location.get_angle_to(&cursor_location_corrected);
 
-        transform.rotation = Quat::from_rotation_z(angle_calc.0);
+        // transform.rotation = Quat::from_rotation_z(angle_calc.0);
         player.angle = angle_calc;
     }
 }
@@ -399,12 +399,38 @@ fn load_materials(mut commands: Commands, mut materials: ResMut<Assets<ColorMate
     });
 }
 
-fn load_player(mut commands: Commands, mut materials: ResMut<Assets<ColorMaterial>>) {
+struct SpriteAnimationCapture {
+    x_diff:         f32,
+    y_diff:         f32,
+    start_point:    [f32; 2]
+}
+
+fn load_player(
+    mut commands:   Commands, 
+    mut materials:  ResMut<Assets<ColorMaterial>>,
+    mut meshes:     ResMut<Assets<Mesh>>,
+    asset_server:   Res<AssetServer>
+) {
+    let texture_handle = asset_server.load("images/players/index.png");
+
+    let mut mesh = Mesh::from(shape::Quad::new(Vec2::new(1.0, 1.0)));
+    let x_diff = 1./12.;
+    let y_diff = 1./8.;
+    let uv_vec = vec![
+        [0.0+(x_diff*1.),           0.5+y_diff],
+        [0.0+(x_diff*1.),           0.5],
+        [x_diff+(x_diff*1.),        0.5],
+        [x_diff+(x_diff*1.),        0.5+y_diff]
+    ];
+    mesh.set_attribute(Mesh::ATTRIBUTE_UV_0, uv_vec);
+
     commands
         .spawn_bundle(SpriteBundle {
-            sprite: Sprite::new(Vec2::new(15.0, 10.0)),
-            material: materials.add(Color::ORANGE_RED.into()),
-            transform: Transform::from_xyz(0.001, 0.001, 0.1),
+            sprite: Sprite::new(Vec2::new(30.0, 50.0)),
+            material: materials.add(texture_handle.into()),
+            // material: materials.add(Color::ORANGE_RED.into()),
+            mesh: meshes.add(mesh),
+            transform: Transform::from_xyz(0.0, 0.0, 0.1),
             ..Default::default()
         })
         .insert(Player {

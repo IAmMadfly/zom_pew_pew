@@ -18,7 +18,7 @@ struct Player {
 
 enum ZomType {
     Default,
-    Strong
+    Strong,
 }
 
 impl Default for ZomType {
@@ -29,7 +29,7 @@ impl Default for ZomType {
 
 #[derive(Default)]
 struct Zom {
-    zom_type:   ZomType
+    zom_type: ZomType,
 }
 
 struct Vel(Vec2);
@@ -75,11 +75,10 @@ impl Velocity for Vec2 {
 struct Bullet {}
 
 pub struct Materials {
-    bullet:     Handle<ColorMaterial>,
-    zom:        Handle<ColorMaterial>,
+    bullet: Handle<ColorMaterial>,
+    zom: Handle<ColorMaterial>,
     strong_zom: Handle<ColorMaterial>,
 }
-
 
 trait ClampMax {
     fn clamp_max_length(&mut self, max: f32);
@@ -97,7 +96,6 @@ impl ClampMax for Vec2 {
         }
     }
 }
-
 
 fn main() {
     let mut app = App::build();
@@ -119,6 +117,7 @@ fn main() {
     app.add_system(move_zom.system());
     app.add_system(zom_bullet_collision.system());
     app.add_system(despawn_bullet.system());
+    app.add_system(change_player_sprite.system());
     app.add_system(update_text.system());
 
     app.run();
@@ -140,7 +139,7 @@ fn update_text(mut text_query: Query<&mut Text>, player_query: Query<&Player>) {
 fn face_mouse(mut player_query: Query<(&mut Player, &mut Transform)>, windows: Res<Windows>) {
     let window = windows.get_primary().unwrap();
     let cursor_loc_opt = window.cursor_position();
-    if let (Ok((mut player, mut transform)), Some(cursor_location)) =
+    if let (Ok((mut player, transform)), Some(cursor_location)) =
         (player_query.single_mut(), cursor_loc_opt)
     {
         let cursor_location_corrected = Vec2::new(
@@ -180,10 +179,7 @@ fn move_player(input: Res<Input<KeyCode>>, mut player_query: Query<(&Player, &mu
     }
 }
 
-fn player_input(
-    input: Res<Input<KeyCode>>, 
-    mut player_query: Query<&mut Player>
-) {
+fn player_input(input: Res<Input<KeyCode>>, mut player_query: Query<&mut Player>) {
     if let Ok(mut player) = player_query.single_mut() {
         if input.pressed(KeyCode::R) {
             if let Some(gun) = &mut player.gun {
@@ -212,7 +208,7 @@ fn move_zom(
 
         let speed = match zom.zom_type {
             ZomType::Default => ZOM_SPEED,
-            ZomType::Strong => STRONG_ZOM_SPEED
+            ZomType::Strong => STRONG_ZOM_SPEED,
         };
 
         zom_trans.translation.x += unit_vec.0 * speed;
@@ -228,9 +224,9 @@ fn move_zom(
 }
 
 fn zom_bullet_collision(
-    bullet_query:       Query<(&Bullet, &Transform, Entity)>,
-    zom_query:          Query<(&Zom, &Transform, Entity)>,
-    mut commands:       Commands,
+    bullet_query: Query<(&Bullet, &Transform, Entity)>,
+    zom_query: Query<(&Zom, &Transform, Entity)>,
+    mut commands: Commands,
 ) {
     for (zom, zom_trans, zom_entity) in zom_query.iter() {
         for (_bullet, bullet_trans, bullet_entity) in bullet_query.iter() {
@@ -239,20 +235,20 @@ fn zom_bullet_collision(
                 &bullet_trans.translation.truncate(),
             )
             .magnitude();
-            
+
             match zom.zom_type {
                 ZomType::Default => {
                     if dist < ZOM_SIZE {
                         commands.entity(zom_entity).despawn();
                         commands.entity(bullet_entity).despawn();
                     }
-                },
+                }
                 ZomType::Strong => {
                     if dist < STRONG_ZOM_SIZE {
                         commands.entity(zom_entity).despawn();
                         commands.entity(bullet_entity).despawn();
                     }
-                },
+                }
             };
         }
     }
@@ -293,7 +289,7 @@ fn spawn_zom(mut commands: Commands, materials: Res<Materials>, windows: Res<Win
         }
 
         match random.gen_range(0..10) {
-            0|1|2|3|4|5|6 => {
+            0 | 1 | 2 | 3 | 4 | 5 | 6 => {
                 commands
                     .spawn_bundle(SpriteBundle {
                         sprite: Sprite::new(Vec2::new(ZOM_SIZE, ZOM_SIZE)),
@@ -302,8 +298,8 @@ fn spawn_zom(mut commands: Commands, materials: Res<Materials>, windows: Res<Win
                         ..Default::default()
                     })
                     .insert(Zom::default());
-            },
-            7|8|9 => {
+            }
+            7 | 8 | 9 => {
                 commands
                     .spawn_bundle(SpriteBundle {
                         sprite: Sprite::new(Vec2::new(STRONG_ZOM_SIZE, STRONG_ZOM_SIZE)),
@@ -311,11 +307,12 @@ fn spawn_zom(mut commands: Commands, materials: Res<Materials>, windows: Res<Win
                         transform: Transform::from_xyz(translation.x, translation.y, translation.z),
                         ..Default::default()
                     })
-                    .insert(Zom {zom_type: ZomType::Strong});
-            },
-            _  => {}
+                    .insert(Zom {
+                        zom_type: ZomType::Strong,
+                    });
+            }
+            _ => {}
         }
-        
     }
 }
 
@@ -358,6 +355,81 @@ fn move_elements(mut vel_query: Query<(&Vel, &mut Transform)>) {
     }
 }
 
+struct SpriteAnimationCapture {
+    x_diff: f32,
+    y_diff: f32,
+    start_point: [u32; 2],
+}
+
+fn change_player_sprite(
+    mut player_query: Query<(&Player, &SpriteAnimationCapture, &Handle<Mesh>)>,
+    mut mesh_access: ResMut<Assets<Mesh>>,
+) {
+    if let Ok((player, _sprite_info, mut _mesh)) = player_query.single_mut() {
+        let angle = (player.angle.0 * (180.0 / std::f32::consts::PI)) as i32;
+        let _sprite_mesh = match angle {
+            (-45..=45) => {
+                [
+                    (0 + _sprite_info.start_point[0]) as f32,
+                    (2 + _sprite_info.start_point[1]) as f32,
+                ]
+            }
+            (46..=135) => {
+                [
+                    (0 + _sprite_info.start_point[0]) as f32,
+                    (3 + _sprite_info.start_point[1]) as f32,
+                ]
+            }
+            (136..=225) => {
+                [
+                    (0 + _sprite_info.start_point[0]) as f32,
+                    (1 + _sprite_info.start_point[1]) as f32,
+                ]
+            }
+            (226..=270) => {
+                [
+                    (0 + _sprite_info.start_point[0]) as f32,
+                    (0 + _sprite_info.start_point[1]) as f32,
+                ]
+            }
+            (-90..=-44) => {
+                [
+                    (0 + _sprite_info.start_point[0]) as f32,
+                    (0 + _sprite_info.start_point[1]) as f32,
+                ]
+            }
+            _ => {
+                println!("Angle at: {}", player.angle.0);
+                [
+                    (0 + _sprite_info.start_point[0]) as f32,
+                    (2 + _sprite_info.start_point[1]) as f32,
+                ]
+            }
+        };
+
+        let x_diff = &_sprite_info.x_diff;
+        let y_diff = &_sprite_info.y_diff;
+
+        let uv_vec = vec![
+            [x_diff * _sprite_mesh[0], y_diff * _sprite_mesh[1] + y_diff],
+            [x_diff * _sprite_mesh[0], y_diff * _sprite_mesh[1]],
+            [x_diff * _sprite_mesh[0] + x_diff, y_diff * _sprite_mesh[1]],
+            [
+                x_diff * _sprite_mesh[0] + x_diff,
+                y_diff * _sprite_mesh[1] + y_diff,
+            ],
+        ];
+
+        let mesh = mesh_access
+            .get_mut(_mesh)
+            .expect("Failed to get mesh handle for player!");
+
+        mesh.set_attribute(Mesh::ATTRIBUTE_UV_0, uv_vec);
+
+        // _mesh.set_attribute(Mesh::ATTRIBUTE_UV_0, uv_vec);
+    }
+}
+
 // SETUP FUNCTIONS
 // ----------------------------------
 fn load_camera(mut commands: Commands) {
@@ -395,32 +467,26 @@ fn load_materials(mut commands: Commands, mut materials: ResMut<Assets<ColorMate
     commands.insert_resource(Materials {
         bullet: materials.add(Color::GRAY.into()),
         zom: materials.add(Color::RED.into()),
-        strong_zom: materials.add(Color::CYAN.into())
+        strong_zom: materials.add(Color::CYAN.into()),
     });
 }
 
-struct SpriteAnimationCapture {
-    x_diff:         f32,
-    y_diff:         f32,
-    start_point:    [f32; 2]
-}
-
 fn load_player(
-    mut commands:   Commands, 
-    mut materials:  ResMut<Assets<ColorMaterial>>,
-    mut meshes:     ResMut<Assets<Mesh>>,
-    asset_server:   Res<AssetServer>
+    mut commands: Commands,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    asset_server: Res<AssetServer>,
 ) {
     let texture_handle = asset_server.load("images/players/index.png");
 
     let mut mesh = Mesh::from(shape::Quad::new(Vec2::new(1.0, 1.0)));
-    let x_diff = 1./12.;
-    let y_diff = 1./8.;
+    let x_diff = 1. / 12.;
+    let y_diff = 1. / 8.;
     let uv_vec = vec![
-        [0.0+(x_diff*1.),           0.5+y_diff],
-        [0.0+(x_diff*1.),           0.5],
-        [x_diff+(x_diff*1.),        0.5],
-        [x_diff+(x_diff*1.),        0.5+y_diff]
+        [0.0 + (x_diff * 1.), 0.5 + y_diff],
+        [0.0 + (x_diff * 1.), 0.5],
+        [x_diff + (x_diff * 1.), 0.5],
+        [x_diff + (x_diff * 1.), 0.5 + y_diff],
     ];
     mesh.set_attribute(Mesh::ATTRIBUTE_UV_0, uv_vec);
 
@@ -432,6 +498,11 @@ fn load_player(
             mesh: meshes.add(mesh),
             transform: Transform::from_xyz(0.0, 0.0, 0.1),
             ..Default::default()
+        })
+        .insert(SpriteAnimationCapture {
+            x_diff,
+            y_diff,
+            start_point: [1, 4],
         })
         .insert(Player {
             angle: Rad(0.0),

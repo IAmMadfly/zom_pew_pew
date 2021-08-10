@@ -192,9 +192,7 @@ fn player_input(input: Res<Input<KeyCode>>, mut player_query: Query<&mut Player>
     }
 }
 
-fn move_zom(
-    mut player_query: QuerySet<(Query<PeopleBorrow>, Query<ZomBorrowTransMut>)>,
-) {
+fn move_zom(mut player_query: QuerySet<(Query<PeopleBorrow>, Query<ZomBorrowTransMut>)>) {
     let mut _player_transform = Transform::from_xyz(0.0, 0.0, 0.0);
     if let Ok((_player, player_trans)) = player_query.q0().single() {
         _player_transform = *player_trans;

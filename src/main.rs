@@ -11,6 +11,9 @@ static ZOM_SIZE: f32 = 10.0;
 static STRONG_ZOM_SIZE: f32 = 15.0;
 static STRONG_ZOM_SPEED: f32 = 1.6;
 
+type PeopleBorrow<'a> = (&'a Player, &'a Transform);
+type ZomBorrowTransMut<'a> = (&'a Zom, &'a mut Transform);
+
 struct Player {
     angle: Rad<f32>,
     gun: Option<Box<dyn gun::Gun>>,
@@ -91,8 +94,8 @@ impl ClampMax for Vec2 {
         if curr_length > max {
             let ratio = max / curr_length;
 
-            self.x = self.x * ratio;
-            self.y = self.y * ratio;
+            self.x *= ratio;
+            self.y *= ratio;
         }
     }
 }
@@ -147,7 +150,7 @@ fn face_mouse(mut player_query: Query<(&mut Player, &mut Transform)>, windows: R
             cursor_location.y - (window.height() / 2.0),
         );
 
-        let player_location = transform.translation.clone().truncate();
+        let player_location = transform.translation.truncate();
 
         let angle_calc = player_location.get_angle_to(&cursor_location_corrected);
 
@@ -190,11 +193,11 @@ fn player_input(input: Res<Input<KeyCode>>, mut player_query: Query<&mut Player>
 }
 
 fn move_zom(
-    mut player_query: QuerySet<(Query<(&Player, &Transform)>, Query<(&Zom, &mut Transform)>)>,
+    mut player_query: QuerySet<(Query<PeopleBorrow>, Query<ZomBorrowTransMut>)>,
 ) {
     let mut _player_transform = Transform::from_xyz(0.0, 0.0, 0.0);
     if let Ok((_player, player_trans)) = player_query.q0().single() {
-        _player_transform = player_trans.clone();
+        _player_transform = *player_trans;
     } else {
         return;
     }
@@ -368,40 +371,30 @@ fn change_player_sprite(
     if let Ok((player, _sprite_info, mut _mesh)) = player_query.single_mut() {
         let angle = (player.angle.0 * (180.0 / std::f32::consts::PI)) as i32;
         let _sprite_mesh = match angle {
-            (-45..=45) => {
-                [
-                    (0 + _sprite_info.start_point[0]) as f32,
-                    (2 + _sprite_info.start_point[1]) as f32,
-                ]
-            }
-            (46..=135) => {
-                [
-                    (0 + _sprite_info.start_point[0]) as f32,
-                    (3 + _sprite_info.start_point[1]) as f32,
-                ]
-            }
-            (136..=225) => {
-                [
-                    (0 + _sprite_info.start_point[0]) as f32,
-                    (1 + _sprite_info.start_point[1]) as f32,
-                ]
-            }
-            (226..=270) => {
-                [
-                    (0 + _sprite_info.start_point[0]) as f32,
-                    (0 + _sprite_info.start_point[1]) as f32,
-                ]
-            }
-            (-90..=-44) => {
-                [
-                    (0 + _sprite_info.start_point[0]) as f32,
-                    (0 + _sprite_info.start_point[1]) as f32,
-                ]
-            }
+            (-45..=45) => [
+                (_sprite_info.start_point[0]) as f32,
+                (2 + _sprite_info.start_point[1]) as f32,
+            ],
+            (46..=135) => [
+                (_sprite_info.start_point[0]) as f32,
+                (3 + _sprite_info.start_point[1]) as f32,
+            ],
+            (136..=225) => [
+                (_sprite_info.start_point[0]) as f32,
+                (1 + _sprite_info.start_point[1]) as f32,
+            ],
+            (226..=270) => [
+                (_sprite_info.start_point[0]) as f32,
+                (_sprite_info.start_point[1]) as f32,
+            ],
+            (-90..=-44) => [
+                (_sprite_info.start_point[0]) as f32,
+                (_sprite_info.start_point[1]) as f32,
+            ],
             _ => {
                 println!("Angle at: {}", player.angle.0);
                 [
-                    (0 + _sprite_info.start_point[0]) as f32,
+                    (_sprite_info.start_point[0]) as f32,
                     (2 + _sprite_info.start_point[1]) as f32,
                 ]
             }
@@ -506,7 +499,7 @@ fn load_player(
         })
         .insert(Player {
             angle: Rad(0.0),
-            gun: Some(gun::Shotgun::new()),
+            gun: Some(gun::Pistol::new()),
         });
 }
 // -----------------------------------

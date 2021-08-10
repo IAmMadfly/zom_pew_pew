@@ -69,8 +69,10 @@ impl Gun for Shotgun {
             if mouse.just_pressed(MouseButton::Left) {
                 let mut random = rand::thread_rng();
                 for _index in 0..5 {
+                    #[allow(clippy::clone_on_copy)]
                     let mut transform = player_transform.clone();
                     transform.translation.z = 0.0;
+                    transform.rotate(Quat::from_rotation_z(angle.0));
 
                     commands
                         .spawn()
@@ -145,8 +147,11 @@ impl Gun for Pistol {
             if mouse.just_pressed(MouseButton::Left) {
                 let velocity = crate::Vel(Vec2::new(angle.cos() * 6.0, angle.sin() * 6.0));
 
+                #[allow(clippy::clone_on_copy)]
                 let mut transform = player_transform.clone();
                 transform.translation.z = 0.0;
+                transform.rotate(Quat::from_rotation_z(angle.0));
+
                 commands
                     .spawn()
                     .insert_bundle(SpriteBundle {

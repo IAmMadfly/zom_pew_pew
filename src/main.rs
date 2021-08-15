@@ -131,7 +131,7 @@ fn update_text(mut text_query: Query<&mut Text>, player_query: Query<&Player>) {
         if let Some(gun) = &player.gun {
             text.sections[0].value = match gun.reloading() {
                 true => "RELOADING!".to_string(),
-                false => format!("Rounds: {}", gun.left_in_mag()),
+                false => format!("{} Rounds: {}", gun.name(), gun.left_in_mag()),
             };
         } else {
             text.sections[0].value = "No gun".to_string();
@@ -362,62 +362,69 @@ struct SpriteAnimationCapture {
     start_point: [u32; 2],
 }
 
+// fn change_zom_sprite(
+//     mut zom_query: Query<(&Zom, &SpriteAnimationCapture, &Handle<Mesh>)>,
+//     mut mesh_access: ResMut<Assets<Mesh>>,
+// ) {
+//     if let Ok((zom, sprite_info, mut mesh)) = zom_query.single_mut() {
+//         let angle = (zom.angle.0 * (180.0 / std::f32::consts::PI)) as i32;
+//     }
+// }
+
 fn change_player_sprite(
     mut player_query: Query<(&Player, &SpriteAnimationCapture, &Handle<Mesh>)>,
     mut mesh_access: ResMut<Assets<Mesh>>,
 ) {
-    if let Ok((player, _sprite_info, mut _mesh)) = player_query.single_mut() {
+    if let Ok((player, sprite_info, mesh)) = player_query.single_mut() {
         let angle = (player.angle.0 * (180.0 / std::f32::consts::PI)) as i32;
-        let _sprite_mesh = match angle {
+        let sprite_mesh = match angle {
             (-45..=45) => [
-                (_sprite_info.start_point[0]) as f32,
-                (2 + _sprite_info.start_point[1]) as f32,
+                (sprite_info.start_point[0]) as f32,
+                (2 + sprite_info.start_point[1]) as f32,
             ],
             (46..=135) => [
-                (_sprite_info.start_point[0]) as f32,
-                (3 + _sprite_info.start_point[1]) as f32,
+                (sprite_info.start_point[0]) as f32,
+                (3 + sprite_info.start_point[1]) as f32,
             ],
             (136..=225) => [
-                (_sprite_info.start_point[0]) as f32,
-                (1 + _sprite_info.start_point[1]) as f32,
+                (sprite_info.start_point[0]) as f32,
+                (1 + sprite_info.start_point[1]) as f32,
             ],
             (226..=270) => [
-                (_sprite_info.start_point[0]) as f32,
-                (_sprite_info.start_point[1]) as f32,
+                (sprite_info.start_point[0]) as f32,
+                (sprite_info.start_point[1]) as f32,
             ],
             (-90..=-44) => [
-                (_sprite_info.start_point[0]) as f32,
-                (_sprite_info.start_point[1]) as f32,
+                (sprite_info.start_point[0]) as f32,
+                (sprite_info.start_point[1]) as f32,
             ],
             _ => {
                 println!("Angle at: {}", player.angle.0);
                 [
-                    (_sprite_info.start_point[0]) as f32,
-                    (2 + _sprite_info.start_point[1]) as f32,
+                    (sprite_info.start_point[0]) as f32,
+                    (2 + sprite_info.start_point[1]) as f32,
                 ]
             }
         };
 
-        let x_diff = &_sprite_info.x_diff;
-        let y_diff = &_sprite_info.y_diff;
+        let x_diff = &sprite_info.x_diff;
+        let y_diff = &sprite_info.y_diff;
 
         let uv_vec = vec![
-            [x_diff * _sprite_mesh[0], y_diff * _sprite_mesh[1] + y_diff],
-            [x_diff * _sprite_mesh[0], y_diff * _sprite_mesh[1]],
-            [x_diff * _sprite_mesh[0] + x_diff, y_diff * _sprite_mesh[1]],
+            [x_diff * sprite_mesh[0], y_diff * sprite_mesh[1] + y_diff],
+            [x_diff * sprite_mesh[0], y_diff * sprite_mesh[1]],
+            [x_diff * sprite_mesh[0] + x_diff, y_diff * sprite_mesh[1]],
             [
-                x_diff * _sprite_mesh[0] + x_diff,
-                y_diff * _sprite_mesh[1] + y_diff,
+                x_diff * sprite_mesh[0] + x_diff,
+                y_diff * sprite_mesh[1] + y_diff,
             ],
         ];
 
         let mesh = mesh_access
-            .get_mut(_mesh)
+            .get_mut(mesh)
             .expect("Failed to get mesh handle for player!");
 
         mesh.set_attribute(Mesh::ATTRIBUTE_UV_0, uv_vec);
-
-        // _mesh.set_attribute(Mesh::ATTRIBUTE_UV_0, uv_vec);
     }
 }
 
@@ -468,7 +475,7 @@ fn load_player(
     mut meshes: ResMut<Assets<Mesh>>,
     asset_server: Res<AssetServer>,
 ) {
-    let texture_handle = asset_server.load("images/players/index.png");
+    let texture_handle = asset_server.load("images/people/players.png");
 
     let mut mesh = Mesh::from(shape::Quad::new(Vec2::new(1.0, 1.0)));
     let x_diff = 1. / 12.;
@@ -497,7 +504,7 @@ fn load_player(
         })
         .insert(Player {
             angle: Rad(0.0),
-            gun: Some(gun::Pistol::new()),
+            gun: Some(gun::Shotgun::new()),
         });
 }
 // -----------------------------------

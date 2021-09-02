@@ -1,4 +1,4 @@
-use bevy::{math::f32, prelude::*};
+use bevy::{ecs::query::WorldQuery, math::f32, prelude::*};
 use cgmath::{Angle, Rad};
 use gun::Gun;
 use rand::{self, Rng};
@@ -14,8 +14,13 @@ static STRONG_ZOM_SPEED: f32 = 1.6;
 type PeopleBorrow<'a> = (&'a Player, &'a Transform);
 type ZomBorrowTransMut<'a> = (&'a Zom, &'a mut Transform);
 
+// impl WorldQuery for Rad<f32> {
+//     type Fetch = Self;
+
+//     type State;
+// }
+
 struct Player {
-    angle: Rad<f32>,
     gun: Option<Box<dyn gun::Gun>>,
 }
 
@@ -81,6 +86,7 @@ pub struct Materials {
     bullet: Handle<ColorMaterial>,
     zom: Handle<ColorMaterial>,
     strong_zom: Handle<ColorMaterial>,
+    zom_sprite: Handle<ColorMaterial>,
 }
 
 trait ClampMax {
@@ -120,7 +126,7 @@ fn main() {
     app.add_system(move_zom.system());
     app.add_system(zom_bullet_collision.system());
     app.add_system(despawn_bullet.system());
-    app.add_system(change_player_sprite.system());
+    app.add_system(change_sprite.system());
     app.add_system(update_text.system());
 
     app.run();
@@ -139,10 +145,10 @@ fn update_text(mut text_query: Query<&mut Text>, player_query: Query<&Player>) {
     }
 }
 
-fn face_mouse(mut player_query: Query<(&mut Player, &mut Transform)>, windows: Res<Windows>) {
+fn face_mouse(mut player_query: Query<(&Player, &mut Rad<f32>, &mut Transform)>, windows: Res<Windows>) {
     let window = windows.get_primary().unwrap();
     let cursor_loc_opt = window.cursor_position();
-    if let (Ok((mut player, transform)), Some(cursor_location)) =
+    if let (Ok((_, mut angle, transform)), Some(cursor_location)) =
         (player_query.single_mut(), cursor_loc_opt)
     {
         let cursor_location_corrected = Vec2::new(
@@ -155,7 +161,7 @@ fn face_mouse(mut player_query: Query<(&mut Player, &mut Transform)>, windows: R
         let angle_calc = player_location.get_angle_to(&cursor_location_corrected);
 
         // transform.rotation = Quat::from_rotation_z(angle_calc.0);
-        player.angle = angle_calc;
+        *angle = angle_calc;
     }
 }
 
@@ -192,7 +198,7 @@ fn player_input(input: Res<Input<KeyCode>>, mut player_query: Query<&mut Player>
     }
 }
 
-fn move_zom(mut player_query: QuerySet<(Query<PeopleBorrow>, Query<ZomBorrowTransMut>)>) {
+fn move_zom(mut player_query: QuerySet<(Query<PeopleBorrow>, Query<(&Zom, &mut Transform, &mut Rad<f32>)>)>) {
     let mut _player_transform = Transform::from_xyz(0.0, 0.0, 0.0);
     if let Ok((_player, player_trans)) = player_query.q0().single() {
         _player_transform = *player_trans;
@@ -200,7 +206,7 @@ fn move_zom(mut player_query: QuerySet<(Query<PeopleBorrow>, Query<ZomBorrowTran
         return;
     }
 
-    for (zom, mut zom_trans) in player_query.q1_mut().iter_mut() {
+    for (zom, mut zom_trans, mut angle) in player_query.q1_mut().iter_mut() {
         let unit_vec = Velocity::between_transforms(
             &zom_trans.translation.truncate(),
             &_player_transform.translation.truncate(),
@@ -214,13 +220,10 @@ fn move_zom(mut player_query: QuerySet<(Query<PeopleBorrow>, Query<ZomBorrowTran
 
         zom_trans.translation.x += unit_vec.0 * speed;
         zom_trans.translation.y += unit_vec.1 * speed;
-        zom_trans.rotation = Quat::from_rotation_z(
-            zom_trans
-                .translation
-                .truncate()
-                .get_angle_to(&_player_transform.translation.truncate())
-                .0,
-        );
+        *angle = zom_trans
+            .translation
+            .truncate()
+            .get_angle_to(&_player_transform.translation.truncate());
     }
 }
 
@@ -255,7 +258,12 @@ fn zom_bullet_collision(
     }
 }
 
-fn spawn_zom(mut commands: Commands, materials: Res<Materials>, windows: Res<Windows>) {
+fn spawn_zom(
+    mut commands: Commands, 
+    mut meshes: ResMut<Assets<Mesh>>,
+    materials: Res<Materials>,
+    windows: Res<Windows>
+) {
     let mut random = rand::thread_rng();
     if random.gen_bool(0.01) {
         let mut translation = Vec3::new(0.0, 0.0, 0.0);
@@ -289,15 +297,35 @@ fn spawn_zom(mut commands: Commands, materials: Res<Materials>, windows: Res<Win
             }
         }
 
+        let mut mesh = Mesh::from(shape::Quad::new(Vec2::new(1.0, 1.0)));
+
+        let x_diff = 1./12.;
+        let y_diff = 1./8.;
+        let uv_vec = vec![
+            [0.0 + (x_diff * 1.), 0.5 + y_diff],
+            [0.0 + (x_diff * 1.), 0.5],
+            [x_diff + (x_diff * 1.), 0.5],
+            [x_diff + (x_diff * 1.), 0.5 + y_diff],
+        ];
+
+        mesh.set_attribute(Mesh::ATTRIBUTE_UV_0, uv_vec);
+
         match random.gen_range(0..10) {
             0 | 1 | 2 | 3 | 4 | 5 | 6 => {
                 commands
                     .spawn_bundle(SpriteBundle {
-                        sprite: Sprite::new(Vec2::new(ZOM_SIZE, ZOM_SIZE)),
-                        material: materials.zom.clone(),
+                        sprite: Sprite::new(Vec2::new(30.0, 50.0)),
+                        material: materials.zom_sprite.clone(),
+                        mesh: meshes.add(mesh),
                         transform: Transform::from_xyz(translation.x, translation.y, translation.z),
                         ..Default::default()
                     })
+                    .insert(SpriteAnimationCapture {
+                        x_diff: 1./ 12.,
+                        y_diff: 1./ 8.,
+                        start_point: [1, 4],
+                    })
+                    .insert(Rad(0.0f32))
                     .insert(Zom::default());
             }
             7 | 8 | 9 => {
@@ -308,6 +336,7 @@ fn spawn_zom(mut commands: Commands, materials: Res<Materials>, windows: Res<Win
                         transform: Transform::from_xyz(translation.x, translation.y, translation.z),
                         ..Default::default()
                     })
+                    .insert(Rad(0.0f32))
                     .insert(Zom {
                         zom_type: ZomType::Strong,
                     });
@@ -321,13 +350,12 @@ fn shoot_bullet(
     commands: Commands,
     mouse: Res<Input<MouseButton>>,
     materials: Res<Materials>,
-    mut player_query: Query<(&mut Player, &Transform)>,
+    mut player_query: Query<(&mut Player, &Rad<f32>, &Transform)>,
     time: Res<Time>,
 ) {
-    if let Ok((mut player, trans)) = player_query.single_mut() {
-        let angle = player.angle;
+    if let Ok((mut player, angle, trans)) = player_query.single_mut() {
         if let Some(gun) = player.gun.as_mut() {
-            gun.shoot(time, mouse, trans, angle, materials, commands);
+            gun.shoot(time, mouse, trans, *angle, materials, commands);
         }
     }
 }
@@ -362,21 +390,12 @@ struct SpriteAnimationCapture {
     start_point: [u32; 2],
 }
 
-// fn change_zom_sprite(
-//     mut zom_query: Query<(&Zom, &SpriteAnimationCapture, &Handle<Mesh>)>,
-//     mut mesh_access: ResMut<Assets<Mesh>>,
-// ) {
-//     if let Ok((zom, sprite_info, mut mesh)) = zom_query.single_mut() {
-//         let angle = (zom.angle.0 * (180.0 / std::f32::consts::PI)) as i32;
-//     }
-// }
-
-fn change_player_sprite(
-    mut player_query: Query<(&Player, &SpriteAnimationCapture, &Handle<Mesh>)>,
+fn change_sprite(
+    query: Query<(&Rad<f32>, &SpriteAnimationCapture, &Handle<Mesh>)>,
     mut mesh_access: ResMut<Assets<Mesh>>,
 ) {
-    if let Ok((player, sprite_info, mesh)) = player_query.single_mut() {
-        let angle = (player.angle.0 * (180.0 / std::f32::consts::PI)) as i32;
+    for (radian, sprite_info, mesh) in query.iter() {
+        let angle = (radian.0 * (180.0 / std::f32::consts::PI)) as i32;
         let sprite_mesh = match angle {
             (-45..=45) => [
                 (sprite_info.start_point[0]) as f32,
@@ -399,7 +418,7 @@ fn change_player_sprite(
                 (sprite_info.start_point[1]) as f32,
             ],
             _ => {
-                println!("Angle at: {}", player.angle.0);
+                println!("Angle at: {}", radian.0);
                 [
                     (sprite_info.start_point[0]) as f32,
                     (2 + sprite_info.start_point[1]) as f32,
@@ -422,7 +441,7 @@ fn change_player_sprite(
 
         let mesh = mesh_access
             .get_mut(mesh)
-            .expect("Failed to get mesh handle for player!");
+            .expect("Failed to get mesh handle!");
 
         mesh.set_attribute(Mesh::ATTRIBUTE_UV_0, uv_vec);
     }
@@ -461,11 +480,17 @@ fn load_text(mut commands: Commands, asset_server: Res<AssetServer>) {
     });
 }
 
-fn load_materials(mut commands: Commands, mut materials: ResMut<Assets<ColorMaterial>>) {
+fn load_materials(
+    mut commands: Commands, 
+    mut materials: ResMut<Assets<ColorMaterial>>,
+    asset_server: Res<AssetServer>,
+) {
+    let zom_texture_handle = asset_server.load("images/people/zoms.png");
     commands.insert_resource(Materials {
         bullet: materials.add(Color::GRAY.into()),
         zom: materials.add(Color::RED.into()),
         strong_zom: materials.add(Color::CYAN.into()),
+        zom_sprite: materials.add(zom_texture_handle.into()),
     });
 }
 
@@ -502,8 +527,8 @@ fn load_player(
             y_diff,
             start_point: [1, 4],
         })
+        .insert(Rad(0.0f32))
         .insert(Player {
-            angle: Rad(0.0),
             gun: Some(gun::Shotgun::new()),
         });
 }

@@ -5,9 +5,18 @@ authors = ["karl.runge <karl.runge@defendtex.com>"]
 edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[workspace]
+resolver = "2"
+
+# Enable a small amount of optimization in debug mode
+[profile.dev]
+opt-level = 1
+
+# Enable high optimizations for dependencies (incl. Bevy), but not for our code:
+[profile.dev.package."*"]
+opt-level = 3
 
 [dependencies]
-bevy =      "0.5.0"
-mathrs =    "0.0.6"
-cgmath =    "0.18.0"
-rand =      "0.8.3"
+bevy = "0.10.0"
+cgmath = "0.18.0"
+rand = "0.8.3"

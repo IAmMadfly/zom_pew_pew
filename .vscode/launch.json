@@ -1,0 +1,45 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'zom-pew-pew'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=zom-pew-pew",
+                    "--package=zom-pew-pew"
+                ],
+                "filter": {
+                    "name": "zom-pew-pew",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in executable 'zom-pew-pew'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bin=zom-pew-pew",
+                    "--package=zom-pew-pew"
+                ],
+                "filter": {
+                    "name": "zom-pew-pew",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        }
+    ]
+}

@@ -14,12 +14,13 @@ static STRONG_ZOM_SPEED: f32 = 1.6;
 type PeopleBorrow<'a> = (&'a Player, &'a Transform);
 type ZomBorrowTransMut<'a> = (&'a Zom, &'a mut Transform);
 
-// impl WorldQuery for Rad<f32> {
-//     type Fetch = Self;
+impl WorldQuery for Rad<f32> {
+    type Fetch = Self;
 
-//     type State;
-// }
+    type State;
+}
 
+#[derive(Component)]
 struct Player {
     gun: Option<Box<dyn gun::Gun>>,
 }
@@ -40,6 +41,7 @@ struct Zom {
     zom_type: ZomType,
 }
 
+#[derive(Component)]
 struct Vel(Vec2);
 
 trait Velocity {
@@ -80,6 +82,7 @@ impl Velocity for Vec2 {
     }
 }
 
+#[derive(Component)]
 struct Bullet {}
 
 pub struct Materials {
@@ -145,7 +148,7 @@ fn update_text(mut text_query: Query<&mut Text>, player_query: Query<&Player>) {
     }
 }
 
-fn face_mouse(mut player_query: Query<(&Player, &mut Rad<f32>, &mut Transform)>, windows: Res<Windows>) {
+fn face_mouse(mut player_query: Query<(&Player, &mut Rad<f32>, &mut Transform)>, windows: Window) {
     let window = windows.get_primary().unwrap();
     let cursor_loc_opt = window.cursor_position();
     if let (Ok((_, mut angle, transform)), Some(cursor_location)) =
@@ -198,7 +201,12 @@ fn player_input(input: Res<Input<KeyCode>>, mut player_query: Query<&mut Player>
     }
 }
 
-fn move_zom(mut player_query: QuerySet<(Query<PeopleBorrow>, Query<(&Zom, &mut Transform, &mut Rad<f32>)>)>) {
+fn move_zom(
+    mut player_query: Query<(
+        Query<PeopleBorrow>,
+        Query<(&Zom, &mut Transform, &mut Rad<f32>)>,
+    )>,
+) {
     let mut _player_transform = Transform::from_xyz(0.0, 0.0, 0.0);
     if let Ok((_player, player_trans)) = player_query.q0().single() {
         _player_transform = *player_trans;
@@ -259,10 +267,10 @@ fn zom_bullet_collision(
 }
 
 fn spawn_zom(
-    mut commands: Commands, 
+    mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
-    materials: Res<Materials>,
-    windows: Res<Windows>
+    materials: Materials,
+    windows: Window,
 ) {
     let mut random = rand::thread_rng();
     if random.gen_bool(0.01) {
@@ -299,8 +307,8 @@ fn spawn_zom(
 
         let mut mesh = Mesh::from(shape::Quad::new(Vec2::new(1.0, 1.0)));
 
-        let x_diff = 1./12.;
-        let y_diff = 1./8.;
+        let x_diff = 1. / 12.;
+        let y_diff = 1. / 8.;
         let uv_vec = vec![
             [0.0 + (x_diff * 1.), 0.5 + y_diff],
             [0.0 + (x_diff * 1.), 0.5],
@@ -315,14 +323,14 @@ fn spawn_zom(
                 commands
                     .spawn_bundle(SpriteBundle {
                         sprite: Sprite::new(Vec2::new(30.0, 50.0)),
-                        material: materials.zom_sprite.clone(),
-                        mesh: meshes.add(mesh),
+                        texture: materials.zom_sprite.clone(),
+                        // mesh: meshes.add(mesh),
                         transform: Transform::from_xyz(translation.x, translation.y, translation.z),
                         ..Default::default()
                     })
                     .insert(SpriteAnimationCapture {
-                        x_diff: 1./ 12.,
-                        y_diff: 1./ 8.,
+                        x_diff: 1. / 12.,
+                        y_diff: 1. / 8.,
                         start_point: [1, 4],
                     })
                     .insert(Rad(0.0f32))
@@ -332,7 +340,7 @@ fn spawn_zom(
                 commands
                     .spawn_bundle(SpriteBundle {
                         sprite: Sprite::new(Vec2::new(STRONG_ZOM_SIZE, STRONG_ZOM_SIZE)),
-                        material: materials.strong_zom.clone(),
+                        texture: materials.strong_zom.clone(),
                         transform: Transform::from_xyz(translation.x, translation.y, translation.z),
                         ..Default::default()
                     })
@@ -349,7 +357,7 @@ fn spawn_zom(
 fn shoot_bullet(
     commands: Commands,
     mouse: Res<Input<MouseButton>>,
-    materials: Res<Materials>,
+    materials: Materials,
     mut player_query: Query<(&mut Player, &Rad<f32>, &Transform)>,
     time: Res<Time>,
 ) {
@@ -363,7 +371,7 @@ fn shoot_bullet(
 fn despawn_bullet(
     mut commands: Commands,
     bullet_query: Query<(&Bullet, &Transform, Entity)>,
-    windows: Res<Windows>,
+    windows: Window,
 ) {
     let window = windows.get_primary().unwrap();
     let window_size = (window.width(), window.height());
@@ -450,8 +458,8 @@ fn change_sprite(
 // SETUP FUNCTIONS
 // ----------------------------------
 fn load_camera(mut commands: Commands) {
-    commands.spawn_bundle(OrthographicCameraBundle::new_2d());
-    commands.spawn_bundle(UiCameraBundle::default());
+    commands.spawn(Camera2dBundle::default());
+    // commands.spawn_bundle(UiCameraBundle::default());
 }
 
 fn load_text(mut commands: Commands, asset_server: Res<AssetServer>) {
@@ -481,7 +489,7 @@ fn load_text(mut commands: Commands, asset_server: Res<AssetServer>) {
 }
 
 fn load_materials(
-    mut commands: Commands, 
+    mut commands: Commands,
     mut materials: ResMut<Assets<ColorMaterial>>,
     asset_server: Res<AssetServer>,
 ) {
@@ -514,11 +522,11 @@ fn load_player(
     mesh.set_attribute(Mesh::ATTRIBUTE_UV_0, uv_vec);
 
     commands
-        .spawn_bundle(SpriteBundle {
+        .spawn(SpriteBundle {
             sprite: Sprite::new(Vec2::new(30.0, 50.0)),
-            material: materials.add(texture_handle.into()),
+            texture: texture_handle,
             // material: materials.add(Color::ORANGE_RED.into()),
-            mesh: meshes.add(mesh),
+            // mesh: meshes.add(mesh),
             transform: Transform::from_xyz(0.0, 0.0, 0.1),
             ..Default::default()
         })

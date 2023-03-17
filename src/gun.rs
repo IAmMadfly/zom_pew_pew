@@ -13,7 +13,7 @@ pub trait Gun: Send + Sync {
         mouse: Res<Input<MouseButton>>,
         player_transform: &Transform,
         angle: Rad<f32>,
-        materials: Res<crate::Materials>,
+        materials: crate::Materials,
         commands: Commands,
     );
 
@@ -60,7 +60,7 @@ impl Gun for Shotgun {
         mouse: Res<Input<MouseButton>>,
         player_transform: &Transform,
         angle: Rad<f32>,
-        materials: Res<crate::Materials>,
+        materials: crate::Materials,
         mut commands: Commands,
     ) {
         self.time_left -= time.delta_seconds();
@@ -75,10 +75,9 @@ impl Gun for Shotgun {
                     transform.rotate(Quat::from_rotation_z(angle.0));
 
                     commands
-                        .spawn()
-                        .insert_bundle(SpriteBundle {
+                        .spawn(SpriteBundle {
                             sprite: Sprite::new(Vec2::new(10.0, 4.0)),
-                            material: materials.bullet.clone(),
+                            texture: materials.bullet.clone(),
                             transform,
                             ..Default::default()
                         })
@@ -138,7 +137,7 @@ impl Gun for Pistol {
         mouse: Res<Input<MouseButton>>,
         player_transform: &Transform,
         angle: Rad<f32>,
-        materials: Res<crate::Materials>,
+        materials: crate::Materials,
         mut commands: Commands,
     ) {
         self.time_left -= time.delta_seconds();
@@ -153,10 +152,9 @@ impl Gun for Pistol {
                 transform.rotate(Quat::from_rotation_z(angle.0));
 
                 commands
-                    .spawn()
-                    .insert_bundle(SpriteBundle {
+                    .spawn(SpriteBundle {
                         sprite: Sprite::new(Vec2::new(10.0, 4.0)),
-                        material: materials.bullet.clone(),
+                        texture: materials.bullet.clone(),
                         transform,
                         ..Default::default()
                     })
